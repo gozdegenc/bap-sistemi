@@ -1,0 +1,209 @@
+{% extends "shared/base.html" %}
+{% block title %}Kullanıcılar — BAP{% endblock %}
+{% block page_title %}Kullanıcı Yönetimi{% endblock %}
+
+{% block sidebar_nav %}
+<a href="/yonetim">← Dashboard</a>
+<a href="/yonetim/kullanicilar" class="active">Kullanıcılar</a>
+{% endblock %}
+
+{% block extra_style %}
+<style>
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4);
+  z-index:100; align-items:center; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal { background:white; border-radius:12px; padding:28px; width:460px; max-width:95vw; }
+.modal h3 { font-size:16px; font-weight:600; margin-bottom:6px; }
+.modal .subtitle { font-size:13px; color:#718096; margin-bottom:18px; }
+.link-box { background:#F7FAFC; border:1px solid #E2E8F0; border-radius:8px;
+  padding:12px 14px; font-size:13px; font-family:monospace;
+  word-break:break-all; color:#2D3748; margin-bottom:12px; }
+.copy-btn { display:flex; align-items:center; gap:6px; }
+.copy-btn.copied { background:#276749; color:white; border-color:#276749; }
+.btn-danger { background:#C53030; color:white; border:1px solid #C53030; }
+.btn-danger:hover { background:#9B2C2C; border-color:#9B2C2C; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if request.query_params.get('success') %}
+<div class="alert alert-success">✓ Kullanıcı başarıyla oluşturuldu.</div>
+{% endif %}
+{% if request.query_params.get('pw_success') %}
+<div class="alert alert-success">✓ Şifre güncellendi.</div>
+{% endif %}
+{% if request.query_params.get('deleted') %}
+<div class="alert alert-success">✓ Kullanıcı silindi.</div>
+{% endif %}
+{% if request.query_params.get('err') == 'has_outputs' %}
+<div class="alert alert-error">Bu kullanıcının sisteme eklenmiş çıktıları var, silinemez.</div>
+{% endif %}
+{% if request.query_params.get('err') == 'admin_delete' %}
+<div class="alert alert-error">Admin kullanıcı silinemez.</div>
+{% endif %}
+
+{% if generated_link %}
+<div class="alert alert-success" style="background:#F0FFF4; border-color:#9AE6B4; color:#276749">
+  <div style="font-weight:600; margin-bottom:8px">
+    ✓ {{ generated_for }} için giriş linki oluşturuldu
+  </div>
+  <div class="link-box" id="generated-link-text">{{ generated_link }}</div>
+  <div style="font-size:13px; margin-bottom:10px; color:#4a5568">
+    Bu linki hocaya WhatsApp, e-posta veya başka bir yolla iletin.<br>
+    Link <strong>48 saat</strong> geçerli ve <strong>yalnızca bir kez</strong> kullanılabilir.
+  </div>
+  <button class="btn btn-success btn-sm copy-btn" id="copy-btn"
+    onclick="copyLink()">
+    📋 Linki Kopyala
+  </button>
+</div>
+{% endif %}
+
+<div class="alert alert-info">
+  <strong>Kurumdan ayrılan hocalar için:</strong> "Giriş Linki Oluştur" butonuyla
+  tek kullanımlık bir link üretin. Hoca bu linke tıklayarak kendi şifresini belirler
+  ve sisteme girer. Şifreyi siz belirlemiş olmazsınız.
+</div>
+
+<div style="display:grid; grid-template-columns:2fr 1fr; gap:24px">
+  <div class="card">
+    <div class="card-header">
+      <h3>Tüm Kullanıcılar <span class="badge badge-gray">{{ users | length }}</span></h3>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Ad Soyad</th>
+          <th>Kullanıcı Adı</th>
+          <th>Rol</th>
+          <th>Giriş</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in users %}
+      <tr>
+        <td>
+          <div style="font-weight:500">{{ u.full_name }}</div>
+          {% if u.email %}<div class="text-xs text-muted">{{ u.email }}</div>{% endif %}
+        </td>
+        <td class="text-muted text-sm">{{ u.username }}</td>
+        <td>
+          {% if u.role.value == 'admin' %}
+          <span class="badge badge-blue">Admin</span>
+          {% else %}
+          <span class="badge badge-gray">Akademisyen</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if u.hashed_password %}
+          <span class="badge badge-green" title="Yerel şifre belirlemiş">● Yerel şifre</span>
+          {% else %}
+          <span class="badge badge-yellow" title="Sadece LDAP ile giriş yapabilir">LDAP</span>
+          {% endif %}
+        </td>
+        <td style="white-space:nowrap">
+          <form method="post" action="/yonetim/kullanici/{{ u.id }}/link-uret"
+                style="display:inline">
+            <button type="submit" class="btn btn-outline btn-sm"
+              title="Tek kullanımlık giriş linki üret">
+              🔗 Giriş Linki
+            </button>
+          </form>
+          {% if u.role.value != 'admin' %}
+          <button type="button" class="btn btn-danger btn-sm"
+            onclick="confirmDelete({{ u.id }}, '{{ u.full_name }}')"
+            title="Kullanıcıyı sil"
+            style="margin-left:4px">
+            Sil
+          </button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h3>Yeni Kullanıcı Ekle</h3></div>
+    <div class="card-body">
+      <p class="text-sm text-muted mb-4">
+        Kurumdan ayrılmış bir hoca için manuel hesap oluşturabilir,
+        ardından "Giriş Linki" ile sisteme davet edebilirsiniz.
+      </p>
+      <form method="post" action="/yonetim/kullanici-ekle">
+        <div class="form-group">
+          <label>Ad Soyad</label>
+          <input type="text" name="full_name" required>
+        </div>
+        <div class="form-group">
+          <label>Kullanıcı Adı</label>
+          <input type="text" name="username" required placeholder="ör. ahmet.yilmaz">
+        </div>
+        <div class="form-group">
+          <label>E-posta <span class="text-muted">(isteğe bağlı)</span></label>
+          <input type="email" name="email">
+        </div>
+        <div class="form-group">
+          <label>Geçici Şifre <span class="text-muted">(sonra linkle değiştirilir)</span></label>
+          <input type="text" name="password" value="Bap2024!" required>
+        </div>
+        <div class="form-group">
+          <label>Rol</label>
+          <select name="role">
+            <option value="faculty">Akademisyen</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Bölüm (isteğe bağlı)</label>
+          <input type="text" name="department">
+        </div>
+        <button type="submit" class="btn btn-primary">Kullanıcı Oluştur</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Silme onayı modalı -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal">
+    <h3 style="color:#C53030">Kullanıcıyı Sil</h3>
+    <p class="subtitle" id="delete-modal-name" style="margin-bottom:16px"></p>
+    <p style="font-size:13px; color:#4A5568; margin-bottom:20px">
+      Bu işlem geri alınamaz. Kullanıcının proje bağlantıları kaldırılır.
+      Çıktısı olan kullanıcılar silinemez.
+    </p>
+    <form method="post" id="delete-form">
+      <div style="display:flex; gap:10px">
+        <button type="submit" class="btn btn-danger">Evet, Sil</button>
+        <button type="button" class="btn btn-secondary"
+          onclick="document.getElementById('delete-modal').classList.remove('open')">
+          Vazgeç
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function confirmDelete(userId, name) {
+  document.getElementById('delete-modal-name').textContent = name + ' silinecek.';
+  document.getElementById('delete-form').action = '/yonetim/kullanici/' + userId + '/sil';
+  document.getElementById('delete-modal').classList.add('open');
+}
+function copyLink() {
+  const text = document.getElementById('generated-link-text').textContent.trim();
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✓ Kopyalandı!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = '📋 Linki Kopyala';
+      btn.classList.remove('copied');
+    }, 3000);
+  });
+}
+</script>
+{% endblock %}

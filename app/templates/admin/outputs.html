@@ -1,0 +1,164 @@
+{% extends "shared/base.html" %}
+{% block title %}Çıktılar — BAP Yönetim{% endblock %}
+{% block page_title %}Çıktı Yönetimi{% endblock %}
+
+{% block sidebar_nav %}
+<a href="/yonetim">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+  Dashboard
+</a>
+<a href="/yonetim/ciktilar" {% if not current_durum and not current_tur %}class="active"{% endif %}>Tüm Çıktılar</a>
+<a href="/yonetim/ciktilar?durum=Gönderildi" {% if current_durum == 'Gönderildi' %}class="active"{% endif %}>Bekleyenler</a>
+<a href="/yonetim/ciktilar?durum=Onaylandı" {% if current_durum == 'Onaylandı' %}class="active"{% endif %}>Onaylananlar</a>
+<a href="/yonetim/ciktilar?durum=Revize+İstendi" {% if current_durum == 'Revize İstendi' %}class="active"{% endif %}>Revize İstenenler</a>
+<div class="sidebar-section">Filtre</div>
+{% for ot in output_types %}
+<a href="/yonetim/ciktilar?tur={{ ot.value }}" style="font-size:13px" {% if current_tur == ot.value %}class="active"{% endif %}>{{ ot.value }}</a>
+{% endfor %}
+{% endblock %}
+
+{% block extra_style %}
+<style>
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4);
+  z-index:100; align-items:center; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal { background:white; border-radius:12px; padding:28px; width:480px; max-width:95vw; }
+.modal h3 { font-size:17px; font-weight:600; margin-bottom:16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if outputs %}
+<div class="card">
+  <div class="card-header">
+    <h3>
+      {% if current_durum %}{{ current_durum }}{% elif current_tur %}{{ current_tur }}{% else %}Tüm Çıktılar{% endif %}
+      <span class="badge badge-gray" style="margin-left:8px">{{ outputs | length }}</span>
+    </h3>
+    <div class="flex gap-2">
+      <a href="/yonetim/rapor?format=pdf" class="btn btn-secondary btn-sm">PDF Rapor</a>
+      <a href="/yonetim/rapor?format=excel" class="btn btn-primary btn-sm">Excel Rapor</a>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Proje</th>
+        <th>Çıktı</th>
+        <th>Tür</th>
+        <th>Gönderen</th>
+        <th>Durum</th>
+        <th>Tarih</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for output in outputs %}
+    <tr>
+      <td><span class="badge badge-blue">{{ output.project.project_code }}</span></td>
+      <td>
+        <a href="/yonetim/cikti/{{ output.id }}" style="font-weight:500; max-width:280px; display:block; color:#2B6CB0; text-decoration:none">
+          {{ output.title }}
+        </a>
+        {% if output.identifier %}
+        <div class="text-xs text-muted">{{ output.identifier }}</div>
+        {% endif %}
+        {% if output.attachments %}
+        <a href="/yonetim/cikti/{{ output.id }}" class="text-xs" style="color:#2B6CB0; margin-top:2px; text-decoration:none">
+          📎 {{ output.attachments | length }} ek
+        </a>
+        {% endif %}
+      </td>
+      <td><span class="badge badge-gray">{{ output.output_type.value }}</span></td>
+      <td><div class="text-sm">{{ output.submitted_by.full_name }}</div></td>
+      <td>
+        {% if output.status.value == 'Onaylandı' %}
+        <span class="badge badge-green">✓ Onaylandı</span>
+        {% elif output.status.value == 'Gönderildi' %}
+        <span class="badge badge-yellow">⏳ Bekliyor</span>
+        {% elif output.status.value == 'Reddedildi' %}
+        <span class="badge badge-red">✗ Reddedildi</span>
+        {% else %}
+        <span class="badge badge-gray">{{ output.status.value }}</span>
+        {% endif %}
+      </td>
+      <td class="text-xs text-muted">{{ output.created_at.strftime('%d.%m.%Y') }}</td>
+      <td>
+        {% if output.status.value == 'Gönderildi' %}
+        <div class="flex gap-2">
+          <button class="btn btn-success btn-sm"
+            onclick="openApprove({{ output.id }})">Onayla</button>
+          <button class="btn btn-warning btn-sm" style="background:#7C3AED;color:white"
+            onclick="openRevise({{ output.id }})">Revize İste</button>
+        </div>
+        {% elif output.status.value == 'Onaylandı' %}
+        <form method="post" action="/yonetim/cikti/{{ output.id }}/reddet" style="display:inline">
+          <input type="hidden" name="admin_note" value="Geri alındı">
+          <button type="submit" class="btn btn-outline btn-sm">Geri Al</button>
+        </form>
+        {% elif output.status.value == 'Revize İstendi' %}
+        <span class="badge" style="background:#FAF5FF;color:#6B21A8">🔄 Revize Bekleniyor</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body" style="text-align:center; padding:48px">
+    <p class="text-muted">Bu filtre için çıktı bulunamadı.</p>
+  </div>
+</div>
+{% endif %}
+
+<!-- Onay modal -->
+<div class="modal-overlay" id="approve-modal">
+  <div class="modal">
+    <h3>Çıktıyı Onayla</h3>
+    <form method="post" id="approve-form">
+      <div class="form-group">
+        <label>Not (isteğe bağlı)</label>
+        <textarea name="admin_note" rows="3" placeholder="Onay notu ekleyebilirsiniz..."></textarea>
+      </div>
+      <div class="flex gap-2">
+        <button type="submit" class="btn btn-success">Onayla</button>
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">İptal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Revize modal -->
+<div class="modal-overlay" id="revise-modal">
+  <div class="modal">
+    <h3>🔄 Revize İste</h3>
+    <form method="post" id="revise-form">
+      <div class="form-group">
+        <label>Revize Notu * <span style="font-size:11px;color:#718096">(Kullanıcıya gösterilecek)</span></label>
+        <textarea name="admin_note" rows="4" required
+          placeholder="Neyin düzeltilmesi gerektiğini açıklayın. Kullanıcı bu notu görerek düzenleme yapacaktır..."></textarea>
+      </div>
+      <div class="flex gap-2">
+        <button type="submit" class="btn btn-sm" style="background:#7C3AED;color:white">Revize İste</button>
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">İptal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openApprove(id) {
+  document.getElementById('approve-form').action = '/yonetim/cikti/' + id + '/onayla';
+  document.getElementById('approve-modal').classList.add('open');
+}
+function openRevise(id) {
+  document.getElementById('revise-form').action = '/yonetim/cikti/' + id + '/reddet';
+  document.getElementById('revise-modal').classList.add('open');
+}
+function closeModal() {
+  document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('open'));
+}
+</script>
+{% endblock %}

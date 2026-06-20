@@ -1,0 +1,108 @@
+{% extends "shared/base.html" %}
+
+{% block title %}Projelerim — BAP{% endblock %}
+{% block page_title %}Projelerim{% endblock %}
+
+{% block sidebar_nav %}
+<a href="/portal" class="active">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M3 12h18M3 17h18"/></svg>
+  Projelerim
+</a>
+{% endblock %}
+
+{% block content %}
+{% if projects %}
+{# Revize bekleyen çıktı varsa uyarı banner'ı göster #}
+{% set revize_list = [] %}
+{% for p in projects %}{% for o in p.outputs %}{% if o.status.value == 'Revize İstendi' %}{% set _ = revize_list.append(o) %}{% endif %}{% endfor %}{% endfor %}
+{% if revize_list %}
+<div style="margin-bottom:20px; padding:14px 18px; background:#FAF5FF; border:1px solid #D8B4FE; border-radius:10px; display:flex; align-items:center; gap:12px">
+  <span style="font-size:22px">🔄</span>
+  <div>
+    <div style="font-weight:600; color:#6B21A8; font-size:14px">{{ revize_list|length }} çıktınız revize bekliyor</div>
+    <div style="font-size:13px; color:#7C3AED; margin-top:2px">İlgili projeye girip <strong>Düzenle ve Tekrar Gönder</strong> butonuna tıklayın.</div>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+{% if projects %}
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="label">Toplam Proje</div>
+    <div class="value">{{ projects | length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Toplam Çıktı</div>
+    <div class="value">{% set ns = namespace(total=0) %}{% for p in projects %}{% set ns.total = ns.total + p.outputs|length %}{% endfor %}{{ ns.total }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Onaylanan Çıktı</div>
+    <div class="value">
+      {% set ns = namespace(count=0) %}
+      {% for p in projects %}{% for o in p.outputs %}{% if o.status.value == 'Onaylandı' %}{% set ns.count = ns.count + 1 %}{% endif %}{% endfor %}{% endfor %}
+      {{ ns.count }}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Projeleriniz</h3>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Proje Kodu</th>
+        <th>Başlık</th>
+        <th>Bütçe</th>
+        <th>Çıktı</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for project in projects %}
+    <tr>
+      <td><span class="badge badge-blue">{{ project.project_code }}</span></td>
+      <td>
+        <div style="font-weight:500">{{ project.title }}</div>
+        {% if project.department %}<div class="text-xs text-muted mt-1">{{ project.department }}</div>{% endif %}
+      </td>
+      <td>
+        {% if project.budget %}
+        {{ "{:,.0f}".format(project.budget) }} ₺
+        {% else %}
+        <span class="text-muted">—</span>
+        {% endif %}
+      </td>
+      <td>
+        {% set approved = project.outputs | selectattr("status.value", "equalto", "Onaylandı") | list %}
+        {% set revize = project.outputs | selectattr("status.value", "equalto", "Revize İstendi") | list %}
+        {% set pending = project.outputs | selectattr("status.value", "equalto", "Gönderildi") | list %}
+        <span class="badge badge-green">{{ approved | length }} onaylı</span>
+        {% if revize %}
+        <span class="ml-1" style="display:inline-block; background:#FAF5FF; color:#6B21A8; border:1px solid #D8B4FE; border-radius:100px; padding:2px 10px; font-size:12px; font-weight:600">🔄 {{ revize | length }} revize</span>
+        {% endif %}
+        {% if pending %}
+        <span class="badge badge-gray ml-1">{{ pending | length }} beklemede</span>
+        {% endif %}
+      </td>
+      <td>
+        <a href="/portal/proje/{{ project.id }}" class="btn btn-primary btn-sm">
+          Çıktıları Gör / Ekle →
+        </a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body" style="text-align:center; padding: 48px;">
+    <p style="font-size:17px; font-weight:600; margin-bottom:8px;">Henüz proje atanmamış</p>
+    <p class="text-muted">Projeleriniz sisteme yüklendiğinde burada görünecektir.<br>
+    Sorun yaşıyorsanız BAP Koordinasyon Birimi ile iletişime geçiniz.</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

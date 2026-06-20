@@ -1,0 +1,188 @@
+{% extends "shared/base.html" %}
+
+{% block title %}{{ project.project_code }} — BAP{% endblock %}
+{% block page_title %}{{ project.project_code }}{% endblock %}
+
+{% block sidebar_nav %}
+<a href="/portal">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+  Projelerime Dön
+</a>
+{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-primary btn-sm" onclick="document.getElementById('add-form').scrollIntoView({behavior:'smooth'})">
+  + Yeni Çıktı Ekle
+</button>
+{% endblock %}
+
+{% block extra_style %}
+<style>
+.output-card { background: white; border: 1px solid #E2E8F0; border-radius: 10px;
+  padding: 16px 20px; margin-bottom: 12px; }
+.output-card .output-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+.output-card .output-meta { font-size: 13px; color: #718096; }
+.output-actions { margin-top: 10px; display: flex; gap: 8px; }
+.status-gonderildi { color: #744210; background: #FFFFF0; }
+.status-onaylandi { color: #276749; background: #F0FFF4; }
+.status-revize { color: #6B21A8; background: #FAF5FF; }
+.status-taslak { color: #718096; background: #F7FAFC; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if request.query_params.get('success') %}
+<div class="alert alert-success">✓ Çıktı başarıyla eklendi. İncelendikten sonra onaylanacaktır.</div>
+{% endif %}
+{% if request.query_params.get('revised') %}
+<div class="alert alert-success">✓ Çıktı güncellendi ve tekrar incelemeye gönderildi.</div>
+{% endif %}
+
+<!-- Proje bilgisi -->
+<div class="card mb-6">
+  <div class="card-body">
+    <div class="flex justify-between items-center">
+      <div>
+        <div class="text-xs text-muted mb-1">Proje Başlığı</div>
+        <div style="font-size:17px; font-weight:600; color:#1A365D">{{ project.title }}</div>
+        {% if project.principal_investigator %}
+        <div class="text-sm text-muted mt-1">Yürütücü: {{ project.principal_investigator.full_name }}</div>
+        {% endif %}
+      </div>
+      <div style="text-align:right">
+        <div class="badge badge-blue" style="font-size:14px; padding: 6px 14px">{{ project.project_code }}</div>
+        {% if project.budget %}
+        <div class="text-sm text-muted mt-2">{{ "{:,.0f}".format(project.budget) }} ₺</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mevcut çıktılar -->
+{% if project.outputs %}
+<h3 style="font-size:16px; font-weight:600; margin-bottom:14px">
+  Eklenen Çıktılar <span class="badge badge-gray">{{ project.outputs | length }}</span>
+</h3>
+{% for output in project.outputs | sort(attribute='created_at', reverse=True) %}
+<div class="output-card">
+  <div class="flex justify-between items-center">
+    <div>
+      <span class="badge badge-blue text-xs">{{ output.output_type.value }}</span>
+      <span class="badge badge-{{ 'green' if output.status.value == 'Onaylandı' else 'yellow' if output.status.value == 'Gönderildi' else 'gray' }} text-xs"
+        {% if output.status.value == 'Revize İstendi' %}style="margin-left:4px; background:#FAF5FF; color:#6B21A8"{% else %}style="margin-left:4px"{% endif %}>
+        {% if output.status.value == 'Revize İstendi' %}🔄 Revize İstendi{% else %}{{ output.status.value }}{% endif %}
+      </span>
+    </div>
+    <span class="text-xs text-muted">{{ output.created_at.strftime('%d.%m.%Y') }}</span>
+  </div>
+  <div class="output-title mt-2">{{ output.title }}</div>
+  {% if output.authors %}<div class="output-meta">{{ output.authors }}</div>{% endif %}
+  {% if output.identifier %}<div class="text-xs text-muted mt-1">{{ output.identifier }}</div>{% endif %}
+  {% if output.admin_note and output.status.value == 'Revize İstendi' %}
+  <div style="margin-top:10px; padding:12px 14px; background:#FAF5FF; border:1px solid #D8B4FE; border-radius:8px">
+    <div style="font-size:12px; font-weight:600; color:#6B21A8; margin-bottom:4px">📝 Admin Revize Notu:</div>
+    <div style="font-size:13px; color:#4C1D95">{{ output.admin_note }}</div>
+  </div>
+  {% endif %}
+  {% if output.attachments %}
+  <div class="mt-2 text-xs text-muted">
+    📎 {{ output.attachments | length }} ek dosya
+  </div>
+  {% endif %}
+  <div class="output-actions">
+    {% if output.status.value == 'Revize İstendi' %}
+    <a href="/portal/cikti/{{ output.id }}/duzenle" class="btn btn-primary btn-sm">
+      🔄 Düzenle ve Tekrar Gönder
+    </a>
+    {% endif %}
+    {% if output.status.value in ['Taslak', 'Gönderildi', 'Revize İstendi'] %}
+    <a href="/portal/cikti/{{ output.id }}/sil"
+       onclick="return confirm('Bu çıktıyı silmek istediğinize emin misiniz?')"
+       class="btn btn-danger btn-sm">Sil</a>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="alert alert-info mb-6">Bu proje için henüz çıktı eklenmemiş.</div>
+{% endif %}
+
+<!-- Yeni çıktı ekleme formu -->
+<div id="add-form" class="card mt-6">
+  <div class="card-header">
+    <h3>Yeni Çıktı Ekle</h3>
+  </div>
+  <div class="card-body">
+    <form method="post" action="/portal/proje/{{ project.id }}/cikti-ekle"
+          enctype="multipart/form-data">
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="output_type">Çıktı Türü *</label>
+          <select id="output_type" name="output_type" required>
+            <option value="">Seçiniz...</option>
+            {% for ot in output_types %}
+            <option value="{{ ot.value }}">{{ ot.value }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="publication_date">Yayın / Sunum / Başvuru Tarihi</label>
+          <input type="text" id="publication_date" name="publication_date"
+            placeholder="ör. 15.03.2024 veya 2024">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="title">Çıktı Başlığı *</label>
+        <input type="text" id="title" name="title" required
+          placeholder="Makalenin, bildirinin, patentin tam adı">
+      </div>
+
+      <div class="form-group">
+        <label for="authors">Yazar / Araştırmacı Bilgileri</label>
+        <input type="text" id="authors" name="authors"
+          placeholder="ör. Ahmet Yılmaz, Fatma Demir, ...">
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="identifier">DOI / ISBN / Patent No / URL</label>
+          <input type="text" id="identifier" name="identifier"
+            placeholder="ör. 10.1234/journal.2024.001">
+        </div>
+        <div class="form-group">
+          <label for="publisher_venue">Dergi / Konferans / Yayınevi</label>
+          <input type="text" id="publisher_venue" name="publisher_venue"
+            placeholder="ör. IEEE Transactions on...">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="relation_note">Projeyle İlişki Notu</label>
+        <textarea id="relation_note" name="relation_note" rows="2"
+          placeholder="Bu çıktının BAP projesiyle nasıl ilişkili olduğunu kısaca açıklayın"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="acknowledgement_note">BAP Teşekkür / Atıf Bilgisi</label>
+        <textarea id="acknowledgement_note" name="acknowledgement_note" rows="2"
+          placeholder="Yayında BAP desteğine teşekkür edilen kısım veya açıklaması"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="files">Kanıt Belgesi / Ek Dosyalar</label>
+        <input type="file" id="files" name="files" multiple
+          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.xlsx">
+        <div class="form-hint">PDF, Word, görsel veya Excel dosyası yükleyebilirsiniz. Birden fazla dosya seçilebilir.</div>
+      </div>
+
+      <div class="flex gap-2 mt-2">
+        <button type="submit" class="btn btn-primary">Çıktıyı Kaydet ve Gönder</button>
+        <a href="/portal" class="btn btn-secondary">İptal</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

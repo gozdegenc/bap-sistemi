@@ -1,0 +1,116 @@
+{% extends "shared/base.html" %}
+{% block title %}Çıktıyı Düzenle — BAP{% endblock %}
+{% block page_title %}Çıktıyı Düzenle{% endblock %}
+
+{% block sidebar_nav %}
+<a href="/portal">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+  Projelerime Dön
+</a>
+<a href="/portal/proje/{{ output.project_id }}">← Projeye Dön</a>
+{% endblock %}
+
+{% block content %}
+<!-- Revize notu -->
+<div style="margin-bottom:20px; padding:16px 20px; background:#FAF5FF; border:1px solid #D8B4FE; border-radius:10px">
+  <div style="font-size:13px; font-weight:700; color:#6B21A8; margin-bottom:6px">📝 Admin Revize Notu</div>
+  <div style="font-size:14px; color:#4C1D95">{{ output.admin_note }}</div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Çıktıyı Düzenle ve Tekrar Gönder</h3>
+  </div>
+  <div class="card-body">
+    <form method="post" action="/portal/cikti/{{ output.id }}/duzenle"
+          enctype="multipart/form-data">
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="output_type">Çıktı Türü *</label>
+          <select id="output_type" name="output_type" required>
+            {% for ot in output_types %}
+            <option value="{{ ot.value }}" {% if ot.value == output.output_type.value %}selected{% endif %}>
+              {{ ot.value }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="publication_date">Yayın / Sunum / Başvuru Tarihi</label>
+          <input type="text" id="publication_date" name="publication_date"
+            value="{{ output.publication_date or '' }}"
+            placeholder="ör. 15.03.2024 veya 2024">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="title">Çıktı Başlığı *</label>
+        <input type="text" id="title" name="title" required
+          value="{{ output.title }}"
+          placeholder="Makalenin, bildirinin, patentin tam adı">
+      </div>
+
+      <div class="form-group">
+        <label for="authors">Yazar / Araştırmacı Bilgileri</label>
+        <input type="text" id="authors" name="authors"
+          value="{{ output.authors or '' }}"
+          placeholder="ör. Ahmet Yılmaz, Fatma Demir, ...">
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="identifier">DOI / ISBN / Patent No / URL</label>
+          <input type="text" id="identifier" name="identifier"
+            value="{{ output.identifier or '' }}"
+            placeholder="ör. 10.1234/journal.2024.001">
+        </div>
+        <div class="form-group">
+          <label for="publisher_venue">Dergi / Konferans / Yayınevi</label>
+          <input type="text" id="publisher_venue" name="publisher_venue"
+            value="{{ output.publisher_venue or '' }}"
+            placeholder="ör. IEEE Transactions on...">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="relation_note">Projeyle İlişki Notu</label>
+        <textarea id="relation_note" name="relation_note" rows="2"
+          placeholder="Bu çıktının BAP projesiyle nasıl ilişkili olduğunu kısaca açıklayın">{{ output.relation_note or '' }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="acknowledgement_note">BAP Teşekkür / Atıf Bilgisi</label>
+        <textarea id="acknowledgement_note" name="acknowledgement_note" rows="2"
+          placeholder="Yayında BAP desteğine teşekkür edilen kısım veya açıklaması">{{ output.acknowledgement_note or '' }}</textarea>
+      </div>
+
+      {% if output.attachments %}
+      <div class="form-group">
+        <label>Mevcut Ekler</label>
+        <div style="display:flex; flex-direction:column; gap:6px">
+          {% for att in output.attachments %}
+          <div style="padding:8px 12px; background:#F7FAFC; border:1px solid #E2E8F0; border-radius:6px; font-size:13px">
+            📎 {{ att.original_filename }}
+          </div>
+          {% endfor %}
+        </div>
+        <div class="form-hint">Mevcut ekler korunur. Aşağıdan yeni dosya ekleyebilirsiniz.</div>
+      </div>
+      {% endif %}
+
+      <div class="form-group">
+        <label for="files">Yeni Ek Dosya Ekle</label>
+        <input type="file" id="files" name="files" multiple
+          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.xlsx">
+        <div class="form-hint">PDF, Word, görsel veya Excel dosyası yükleyebilirsiniz.</div>
+      </div>
+
+      <div class="flex gap-2 mt-2">
+        <button type="submit" class="btn btn-primary">Kaydet ve Tekrar Gönder</button>
+        <a href="/portal/proje/{{ output.project_id }}" class="btn btn-secondary">İptal</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,201 @@
+{% extends "shared/base.html" %}
+{% block title %}Çıktı Detayı — BAP Yönetim{% endblock %}
+{% block page_title %}Çıktı Detayı{% endblock %}
+
+{% block sidebar_nav %}
+<a href="/yonetim">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+  Dashboard
+</a>
+<a href="/yonetim/ciktilar">Tüm Çıktılar</a>
+<a href="/yonetim/ciktilar?durum=Gönderildi">Bekleyenler</a>
+<a href="/yonetim/ciktilar?durum=Onaylandı">Onaylananlar</a>
+<a href="/yonetim/ciktilar?durum=Revize+İstendi">Revize İstenenler</a>
+{% endblock %}
+
+{% block extra_style %}
+<style>
+.detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.detail-field { display:flex; flex-direction:column; gap:4px; }
+.detail-field .field-label { font-size:11px; font-weight:600; color:#718096; text-transform:uppercase; letter-spacing:.5px; }
+.detail-field .field-value { font-size:14px; color:#2d3748; }
+.detail-field .field-value.empty { color:#a0aec0; font-style:italic; }
+.attachment-item { display:flex; align-items:center; gap:10px; padding:10px 14px;
+  border:1px solid #e2e8f0; border-radius:8px; text-decoration:none; color:#2d3748;
+  transition:background .15s; }
+.attachment-item:hover { background:#f7fafc; }
+.attachment-item svg { flex-shrink:0; color:#4a5568; }
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4);
+  z-index:100; align-items:center; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal { background:white; border-radius:12px; padding:28px; width:480px; max-width:95vw; }
+.modal h3 { font-size:17px; font-weight:600; margin-bottom:16px; }
+</style>
+{% endblock %}
+
+{% block topbar_actions %}
+<a href="/yonetim/ciktilar" class="btn btn-secondary btn-sm">← Listeye Dön</a>
+{% if output.status.value == 'Gönderildi' %}
+<button class="btn btn-success btn-sm" onclick="document.getElementById('approve-modal').classList.add('open')">Onayla</button>
+<button class="btn btn-sm" style="background:#7C3AED;color:white" onclick="document.getElementById('revise-modal').classList.add('open')">Revize İste</button>
+{% elif output.status.value == 'Onaylandı' %}
+<form method="post" action="/yonetim/cikti/{{ output.id }}/reddet" style="display:inline">
+  <input type="hidden" name="admin_note" value="Geri alındı">
+  <button type="submit" class="btn btn-outline btn-sm">Onayı Geri Al</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <div>
+      <div style="font-size:18px; font-weight:600; color:#1a202c">{{ output.title }}</div>
+      <div style="margin-top:4px; display:flex; gap:8px; align-items:center">
+        <span class="badge badge-gray">{{ output.output_type.value }}</span>
+        <span class="badge badge-blue">{{ output.project.project_code }}</span>
+        {% if output.status.value == 'Onaylandı' %}
+        <span class="badge badge-green">✓ Onaylandı</span>
+        {% elif output.status.value == 'Gönderildi' %}
+        <span class="badge badge-yellow">⏳ Bekliyor</span>
+        {% elif output.status.value == 'Reddedildi' %}
+        <span class="badge badge-red">✗ Reddedildi</span>
+        {% else %}
+        <span class="badge badge-gray">{{ output.status.value }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="detail-grid">
+      <div class="detail-field">
+        <span class="field-label">Proje</span>
+        <span class="field-value">{{ output.project.project_code }} — {{ output.project.title }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="field-label">Gönderen</span>
+        <span class="field-value">{{ output.submitted_by.full_name }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="field-label">Yazarlar / Araştırmacılar</span>
+        <span class="field-value {% if not output.authors %}empty{% endif %}">
+          {{ output.authors or "Belirtilmemiş" }}
+        </span>
+      </div>
+      <div class="detail-field">
+        <span class="field-label">Yayın / Sunum Tarihi</span>
+        <span class="field-value {% if not output.publication_date %}empty{% endif %}">
+          {{ output.publication_date or "Belirtilmemiş" }}
+        </span>
+      </div>
+      <div class="detail-field">
+        <span class="field-label">Tanımlayıcı (DOI / ISBN / Patent No)</span>
+        <span class="field-value {% if not output.identifier %}empty{% endif %}">
+          {{ output.identifier or "Belirtilmemiş" }}
+        </span>
+      </div>
+      <div class="detail-field">
+        <span class="field-label">Yayıncı / Dergi / Konferans</span>
+        <span class="field-value {% if not output.publisher_venue %}empty{% endif %}">
+          {{ output.publisher_venue or "Belirtilmemiş" }}
+        </span>
+      </div>
+      <div class="detail-field" style="grid-column:span 2">
+        <span class="field-label">BAP Atıf Notu</span>
+        <span class="field-value {% if not output.acknowledgement_note %}empty{% endif %}">
+          {{ output.acknowledgement_note or "Belirtilmemiş" }}
+        </span>
+      </div>
+      <div class="detail-field" style="grid-column:span 2">
+        <span class="field-label">Projeyle İlişki Notu</span>
+        <span class="field-value {% if not output.relation_note %}empty{% endif %}">
+          {{ output.relation_note or "Belirtilmemiş" }}
+        </span>
+      </div>
+      {% if output.admin_note %}
+      <div class="detail-field" style="grid-column:span 2">
+        <span class="field-label">Admin Notu</span>
+        <span class="field-value" style="color:#c53030">{{ output.admin_note }}</span>
+      </div>
+      {% endif %}
+      <div class="detail-field">
+        <span class="field-label">Eklenme Tarihi</span>
+        <span class="field-value">{{ output.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="field-label">Son Güncelleme</span>
+        <span class="field-value">{{ output.updated_at.strftime('%d.%m.%Y %H:%M') }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if output.attachments %}
+<div class="card">
+  <div class="card-header"><h3>Ekler ({{ output.attachments | length }})</h3></div>
+  <div class="card-body" style="display:flex; flex-direction:column; gap:8px">
+    {% for att in output.attachments %}
+    <a href="/yonetim/ek/{{ att.id }}" class="attachment-item" download>
+      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+      </svg>
+      <div style="flex:1">
+        <div style="font-weight:500; font-size:14px">{{ att.original_filename }}</div>
+        {% if att.mime_type %}
+        <div class="text-xs text-muted">{{ att.mime_type }}</div>
+        {% endif %}
+      </div>
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:#2B6CB0">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+      </svg>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body" style="text-align:center; padding:24px">
+    <p class="text-muted text-sm">Bu çıktıya ek dosya yüklenmemiş.</p>
+  </div>
+</div>
+{% endif %}
+
+<!-- Onay modal -->
+<div class="modal-overlay" id="approve-modal">
+  <div class="modal">
+    <h3>Çıktıyı Onayla</h3>
+    <form method="post" action="/yonetim/cikti/{{ output.id }}/onayla">
+      <div class="form-group">
+        <label>Not (isteğe bağlı)</label>
+        <textarea name="admin_note" rows="3" placeholder="Onay notu ekleyebilirsiniz..."></textarea>
+      </div>
+      <div class="flex gap-2">
+        <button type="submit" class="btn btn-success">Onayla</button>
+        <button type="button" class="btn btn-secondary"
+          onclick="document.getElementById('approve-modal').classList.remove('open')">İptal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Revize modal -->
+<div class="modal-overlay" id="revise-modal">
+  <div class="modal">
+    <h3>🔄 Revize İste</h3>
+    <form method="post" action="/yonetim/cikti/{{ output.id }}/reddet">
+      <div class="form-group">
+        <label>Revize Notu * <span style="font-size:11px;color:#718096">(Kullanıcıya gösterilecek)</span></label>
+        <textarea name="admin_note" rows="4" required
+          placeholder="Neyin düzeltilmesi gerektiğini açıklayın..."></textarea>
+      </div>
+      <div class="flex gap-2">
+        <button type="submit" class="btn btn-sm" style="background:#7C3AED;color:white">Revize İste</button>
+        <button type="button" class="btn btn-secondary"
+          onclick="document.getElementById('revise-modal').classList.remove('open')">İptal</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

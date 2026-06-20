@@ -1,0 +1,190 @@
+{% extends "shared/base.html" %}
+{% block title %}Proje Yükle — BAP{% endblock %}
+{% block page_title %}Excel / CSV'den Proje Yükle{% endblock %}
+
+{% block sidebar_nav %}
+<a href="/yonetim">← Dashboard</a>
+<a href="/yonetim/import" class="active">Proje Yükle</a>
+{% endblock %}
+
+{% block extra_style %}
+<style>
+.col-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+.col-table th { background:#EBF8FF; color:#2B6CB0; font-weight:600;
+  padding:7px 10px; border:1px solid #BEE3F8; text-align:left; }
+.col-table td { padding:6px 10px; border:1px solid #E2E8F0; vertical-align:top; }
+.col-table tr:nth-child(even) td { background:#F7FAFC; }
+.col-table .required { color:#C53030; font-weight:700; }
+.col-table .aliases { color:#718096; font-size:11.5px; }
+.col-table .desc { color:#4A5568; }
+.section-sep { background:#F7FAFC; }
+.section-sep td { padding:5px 10px; font-weight:600; color:#4A5568;
+  font-size:11px; text-transform:uppercase; letter-spacing:.5px; border:1px solid #E2E8F0; }
+.tip-box { background:#FFFFF0; border:1px solid #F6E05E; border-radius:8px;
+  padding:12px 16px; font-size:13px; color:#744210; margin-top:16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if result %}
+<div class="alert alert-success" style="margin-bottom:20px">
+  ✓ İşlem tamamlandı:
+  <strong>{{ result.imported }}</strong> yeni proje eklendi,
+  <strong>{{ result.updated }}</strong> proje güncellendi.
+  {% if result.errors %}
+  <br><br>⚠ <strong>{{ result.errors | length }} satırda hata:</strong>
+  <ul style="margin:6px 0 0 16px">
+    {% for e in result.errors %}<li>{{ e }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-error" style="margin-bottom:20px">{{ error }}</div>
+{% endif %}
+
+<div style="display:grid; grid-template-columns:1fr 1.4fr; gap:24px; align-items:start">
+
+  <!-- Sol: Form -->
+  <div style="display:flex; flex-direction:column; gap:16px">
+    <div class="card">
+      <div class="card-header"><h3>Dosya Yükle</h3></div>
+      <div class="card-body">
+        <form method="post" action="/yonetim/import" enctype="multipart/form-data">
+          <div class="form-group">
+            <label>Excel veya CSV Dosyası *</label>
+            <input type="file" name="file" accept=".xlsx,.xls,.csv" required>
+            <div class="form-hint">.xlsx, .xls veya .csv · Maksimum 20 MB</div>
+          </div>
+          <div class="form-group">
+            <label>Yeni Kullanıcılar İçin Varsayılan Şifre</label>
+            <input type="text" name="default_password" value="Bap2024!">
+            <div class="form-hint">
+              Excel'de bulunmayan kullanıcılara atanır.
+              Kullanıcılar giriş yapıp şifrelerini değiştirebilir.
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%">
+            Yükle ve İçe Aktar
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3>Nasıl Çalışır?</h3></div>
+      <div class="card-body" style="font-size:13px; color:#4A5568; line-height:1.7">
+        <ol style="padding-left:18px; margin:0">
+          <li>Excel'inizdeki sütun adları tablodaki kabul edilen adlardan biriyle eşleşmelidir (büyük/küçük harf ve boşluk fark etmez).</li>
+          <li>Aynı <strong>Proje Kodu</strong> varsa proje <strong>güncellenir</strong>, yoksa <strong>yeni oluşturulur</strong>.</li>
+          <li>Aynı <strong>Kullanıcı Adı</strong> ya da <strong>E-posta</strong> varsa kullanıcı <strong>güncellenir</strong>, yoksa yeni hesap açılır.</li>
+          <li>Kullanıcı adı sütunu boşsa e-postanın <code>@</code> öncesi kullanılır.</li>
+          <li>E-posta da boşsa addan otomatik üretilir.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sağ: Sütun rehberi -->
+  <div class="card">
+    <div class="card-header"><h3>Desteklenen Sütunlar</h3></div>
+    <div class="card-body" style="padding:0">
+      <table class="col-table">
+        <thead>
+          <tr>
+            <th style="width:28%">Alan</th>
+            <th style="width:38%">Kabul Edilen Sütun Adları</th>
+            <th>Açıklama</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- ZORUNLU -->
+          <tr class="section-sep"><td colspan="3">Zorunlu</td></tr>
+          <tr>
+            <td><span class="required">Proje Kodu</span></td>
+            <td class="aliases">proje_kodu, proje kodu, project_code, kod</td>
+            <td class="desc">Benzersiz proje kimliği. Var olursa güncelleme yapılır.</td>
+          </tr>
+
+          <!-- PROJE BİLGİLERİ -->
+          <tr class="section-sep"><td colspan="3">Proje Bilgileri</td></tr>
+          <tr>
+            <td>Proje Başlığı</td>
+            <td class="aliases">baslik, başlık, title, proje adı, proje adi</td>
+            <td class="desc">Projenin tam adı.</td>
+          </tr>
+          <tr>
+            <td>Bütçe</td>
+            <td class="aliases">bütçe, bütçe (tl), budget</td>
+            <td class="desc">Sayısal değer. ₺, TL ve virgül otomatik temizlenir.</td>
+          </tr>
+          <tr>
+            <td>Bölüm / Birim</td>
+            <td class="aliases">bölüm, bölüm/birim, department, birim</td>
+            <td class="desc">Projenin ait olduğu bölüm veya birim.</td>
+          </tr>
+          <tr>
+            <td>Kabul Tarihi</td>
+            <td class="aliases">kabul tarihi, başlangıç tarihi, start_date</td>
+            <td class="desc">Projenin kabul/başlangıç tarihi.</td>
+          </tr>
+          <tr>
+            <td>Başvuru Yılı</td>
+            <td class="aliases">başvuru yılı, yıl</td>
+            <td class="desc">Proje başvuru yılı (bilgi amaçlı).</td>
+          </tr>
+          <tr>
+            <td>Proje Türü</td>
+            <td class="aliases">tur, tür, type, proje türü</td>
+            <td class="desc">Ör. Araştırma, Altyapı vb.</td>
+          </tr>
+          <tr>
+            <td>Başlangıç Tarihi</td>
+            <td class="aliases">baslangic, başlangıç, start_date, başlangıç tarihi</td>
+            <td class="desc">Projenin başlangıç tarihi.</td>
+          </tr>
+          <tr>
+            <td>Bitiş Tarihi</td>
+            <td class="aliases">bitis, bitiş, end_date, bitiş tarihi</td>
+            <td class="desc">Projenin bitiş tarihi.</td>
+          </tr>
+
+          <!-- YÜRÜTÜcü/Kullanıcı -->
+          <tr class="section-sep"><td colspan="3">Yürütücü / Kullanıcı Bilgileri</td></tr>
+          <tr>
+            <td>Ad Soyad</td>
+            <td class="aliases">yurutucu, yürütücü, pi, ad soyad, ad_soyad, isim, tam ad</td>
+            <td class="desc">Yürütücünün tam adı. Kullanıcı adı üretmek için de kullanılır.</td>
+          </tr>
+          <tr>
+            <td>Kullanıcı Adı</td>
+            <td class="aliases">kullanici_adi, kullanıcı adı, username</td>
+            <td class="desc">Sisteme giriş için kullanıcı adı. Varsa öncelikli kullanılır.</td>
+          </tr>
+          <tr>
+            <td>E-posta</td>
+            <td class="aliases">mail, e-posta, eposta, email, yurutucu_email, pi_email</td>
+            <td class="desc">Kullanıcının kurumsal e-postası. Kullanıcı adı türetmek için kullanılır.</td>
+          </tr>
+          <tr>
+            <td>Fakülte</td>
+            <td class="aliases">fakulte, fakülte, faculty</td>
+            <td class="desc">Yürütücünün bağlı olduğu fakülte. Raporlarda gösterilir.</td>
+          </tr>
+          <tr>
+            <td>Bölüm <em>(Yürütücü)</em></td>
+            <td class="aliases">bolum, bölüm, department</td>
+            <td class="desc">Yürütücünün bölümü (proje bölümüyle aynı sütun kullanılabilir).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="tip-box">
+        💡 <strong>İpucu:</strong> Sütun başlıkları büyük/küçük harf, Türkçe/İngilizce veya fazladan boşluk içerse de tanınır.
+        Örnek: <code>E-Posta</code>, <code>eposta</code>, <code>EMAIL</code> hepsi kabul edilir.
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

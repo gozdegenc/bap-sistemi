@@ -1,0 +1,145 @@
+{% extends "shared/base.html" %}
+{% block title %}Yönetim Paneli — BAP{% endblock %}
+{% block page_title %}Yönetim Paneli{% endblock %}
+
+{% block sidebar_nav %}
+<a href="/yonetim" class="active">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+  Dashboard
+</a>
+<div class="sidebar-section">Çıktılar</div>
+<a href="/yonetim/ciktilar">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+  Tüm Çıktılar
+</a>
+<a href="/yonetim/ciktilar?durum=Gönderildi">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  İnceleme Bekleyenler
+  {% if stats.pending > 0 %}
+  <span style="margin-left:auto; background:#C53030; color:white; border-radius:100px; padding:1px 8px; font-size:11px">{{ stats.pending }}</span>
+  {% endif %}
+</a>
+<div class="sidebar-section">Sistem</div>
+<a href="/yonetim/import">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+  Proje Yükle (Excel/CSV)
+</a>
+<a href="/yonetim/kullanicilar">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
+  Kullanıcılar
+</a>
+{% endblock %}
+
+{% block topbar_actions %}
+<div style="display:flex;gap:8px;align-items:center">
+  <select id="year-select"
+    style="padding:4px 8px;border:1px solid #CBD5E0;border-radius:6px;font-size:13px"
+    onchange="filterYear(this.value)">
+    <option value="" {% if not current_year %}selected{% endif %}>Tümü</option>
+    {% for y in available_years %}
+    <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+    {% endfor %}
+  </select>
+  <a href="/yonetim/rapor?format=pdf{% if current_year %}&year={{ current_year }}{% endif %}"
+    class="btn btn-secondary btn-sm">PDF Rapor</a>
+  <a href="/yonetim/rapor?format=excel{% if current_year %}&year={{ current_year }}{% endif %}"
+    class="btn btn-primary btn-sm">Excel Rapor</a>
+</div>
+<script>
+function filterYear(val) {
+  window.location.href = '/yonetim' + (val ? '?year=' + val : '');
+}
+</script>
+{% endblock %}
+
+{% block extra_style %}
+<style>
+.chart-bar { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.chart-bar .label { width:160px; font-size:13px; text-align:right; color:#4a5568; flex-shrink:0; }
+.chart-bar .bar-wrap { flex:1; background:#EDF2F7; border-radius:4px; height:24px; }
+.chart-bar .bar { background:#2B6CB0; border-radius:4px; height:24px;
+  display:flex; align-items:center; padding-left:8px;
+  font-size:12px; color:white; font-weight:600; min-width:32px; }
+.pending-row td { background:#FFFFF0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="label">Toplam Proje</div>
+    <div class="value">{{ stats.total_projects }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Toplam Çıktı</div>
+    <div class="value">{{ stats.total_outputs }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Bekleyen İnceleme</div>
+    <div class="value" style="color:{% if stats.pending > 0 %}#C53030{% else %}#276749{% endif %}">{{ stats.pending }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Onaylanan Çıktı</div>
+    <div class="value" style="color:#276749">{{ stats.approved }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Akademisyen Sayısı</div>
+    <div class="value">{{ stats.faculty_count }}</div>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px">
+  <!-- Çıktı türü dağılımı -->
+  <div class="card">
+    <div class="card-header"><h3>Onaylı Çıktı Dağılımı</h3></div>
+    <div class="card-body">
+    {% if stats.by_type %}
+      {% set max_count = stats.by_type | map(attribute=1) | max %}
+      {% for otype, count in stats.by_type | sort(attribute=1, reverse=True) %}
+      <div class="chart-bar">
+        <div class="label">{{ otype.value }}</div>
+        <div class="bar-wrap">
+          <div class="bar" style="width:{{ [count / max_count * 100, 8] | max }}%">
+            {{ count }}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="text-muted text-sm">Henüz onaylı çıktı yok.</p>
+    {% endif %}
+    </div>
+  </div>
+
+  <!-- Bekleyen çıktılar -->
+  <div class="card">
+    <div class="card-header">
+      <h3>İnceleme Bekleyenler</h3>
+      <a href="/yonetim/ciktilar?durum=Gönderildi" class="btn btn-secondary btn-sm">Tümünü Gör</a>
+    </div>
+    {% if recent_outputs %}
+    <table>
+      <tbody>
+      {% for output in recent_outputs %}
+      <tr class="pending-row">
+        <td>
+          <div style="font-weight:500; font-size:14px">{{ output.title | truncate(50) }}</div>
+          <div class="text-xs text-muted">
+            {{ output.output_type.value }} · {{ output.project.project_code }}
+          </div>
+        </td>
+        <td style="text-align:right">
+          <a href="/yonetim/ciktilar?durum=Gönderildi" class="btn btn-primary btn-sm">İncele</a>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="card-body">
+      <p class="text-muted text-sm">İnceleme bekleyen çıktı yok.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
