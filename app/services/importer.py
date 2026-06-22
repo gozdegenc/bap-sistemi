@@ -91,11 +91,17 @@ def _str(val) -> str:
     return str(val).strip() if pd.notna(val) else ""
 
 
-_TITLE_PREFIXES = (
-    "prof. dr.", "doç. dr.", "dr. öğr. üyesi", "dr.öğr.üyesi",
-    "öğr. gör. dr.", "öğr. gör.", "arş. gör. dr.", "arş. gör.",
-    "dr.", "prof.", "doç.", "uzm.",
+import re as _re
+
+# Nokta ve boşlukların isteğe bağlı olduğu regex: "Doç Dr.", "Doç. Dr.", "Dr.Ahmet" hepsi eşleşir
+_TITLE_RE = _re.compile(
+    r"^(prof\.?\s*dr\.?\s*|doç\.?\s*dr\.?\s*|dr\.?\s*öğr\.?\s*üyesi\.?\s*|"
+    r"öğr\.?\s*gör\.?\s*dr\.?\s*|öğr\.?\s*gör\.?\s*|"
+    r"arş\.?\s*gör\.?\s*dr\.?\s*|arş\.?\s*gör\.?\s*|"
+    r"dr\.?\s*|prof\.?\s*|doç\.?\s*|uzm\.?\s*)+",
+    _re.IGNORECASE | _re.UNICODE,
 )
+
 
 def _parse_date(val) -> Optional[datetime]:
     """Excel/CSV'den tarih ayrıştırır (Timestamp, datetime veya string)."""
@@ -124,11 +130,9 @@ def _parse_date(val) -> Optional[datetime]:
 
 def _strip_title(name: str) -> str:
     """Akademik unvanı ismin başından çıkarır."""
-    low = name.lower()
-    for prefix in _TITLE_PREFIXES:
-        if low.startswith(prefix):
-            name = name[len(prefix):].strip()
-            low = name.lower()
+    m = _TITLE_RE.match(name.strip())
+    if m:
+        name = name[m.end():].strip()
     return name.strip()
 
 

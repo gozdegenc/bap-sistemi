@@ -111,6 +111,14 @@
             </button>
           </form>
           {% if u.role.value != 'admin' %}
+          <form method="post" action="/yonetim/kullanici/{{ u.id }}/simule-et"
+                style="display:inline; margin-left:4px">
+            <button type="submit" class="btn btn-sm"
+              style="background:#744210; color:white; border:none"
+              title="Bu kullanıcı olarak portal'a gir">
+              👤 Olarak Gir
+            </button>
+          </form>
           <button type="button" class="btn btn-danger btn-sm"
             onclick="confirmDelete({{ u.id }}, '{{ u.full_name }}')"
             title="Kullanıcıyı sil"

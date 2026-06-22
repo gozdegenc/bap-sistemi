@@ -1,0 +1,184 @@
+{% extends "shared/base.html" %}
+{% block title %}Çıktı Takip — BAP{% endblock %}
+{% block page_title %}Çıktı Takip Listesi{% endblock %}
+
+{% block sidebar_nav %}
+<a href="/yonetim">← Dashboard</a>
+<a href="/yonetim/takip" class="active">Çıktı Takip</a>
+<a href="/yonetim/kullanicilar">Kullanıcılar</a>
+{% endblock %}
+
+{% block extra_style %}
+<style>
+.status-ok   { color:#276749; font-weight:600 }
+.status-warn { color:#744210; font-weight:600 }
+.status-none { color:#C53030; font-weight:600 }
+.status-decl { color:#553C9A; font-weight:600 }
+
+.track-table th, .track-table td { padding:10px 14px; font-size:13px }
+.track-table th { background:#F7FAFC; font-size:11px; text-transform:uppercase;
+  letter-spacing:.4px; color:#718096; font-weight:600;
+  border-bottom:1px solid #E2E8F0 }
+.track-table td { border-bottom:1px solid #F0F4F8; vertical-align:middle }
+.track-table tr:last-child td { border-bottom:none }
+.track-table tr:hover td { background:#FAFBFC }
+
+.person-row td { background:#EBF8FF !important; font-weight:600;
+  font-size:13px; color:#1A365D; border-top:2px solid #BEE3F8 }
+
+.tick  { display:inline-flex; align-items:center; gap:5px;
+  background:#F0FFF4; color:#276749; border:1px solid #9AE6B4;
+  border-radius:6px; padding:3px 10px; font-size:12px; font-weight:600 }
+.cross { display:inline-flex; align-items:center; gap:5px;
+  background:#FFF5F5; color:#C53030; border:1px solid #FEB2B2;
+  border-radius:6px; padding:3px 10px; font-size:12px; font-weight:600 }
+.decl  { display:inline-flex; align-items:center; gap:5px;
+  background:#FAF5FF; color:#553C9A; border:1px solid #D6BCFA;
+  border-radius:6px; padding:3px 10px; font-size:12px; font-weight:600 }
+.pend  { display:inline-flex; align-items:center; gap:5px;
+  background:#FFFFF0; color:#744210; border:1px solid #F6E05E;
+  border-radius:6px; padding:3px 10px; font-size:12px; font-weight:600 }
+
+.filter-bar { display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap }
+.filter-btn { padding:6px 14px; border-radius:7px; border:1px solid #E2E8F0;
+  background:white; font-size:13px; cursor:pointer; font-weight:500 }
+.filter-btn.active { background:#2B6CB0; color:white; border-color:#2B6CB0 }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- İstatistik kartları -->
+<div class="stats-grid" style="margin-bottom:24px">
+  <div class="stat-card">
+    <div class="label">Toplam Proje</div>
+    <div class="value">{{ stats.total_proj }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label" style="color:#276749">Çıktı Var / Bildirim</div>
+    <div class="value" style="color:#276749">{{ stats.done_proj }}</div>
+    <div class="sub">{{ "%.0f" | format(stats.done_proj / stats.total_proj * 100 if stats.total_proj else 0) }}%</div>
+  </div>
+  <div class="stat-card">
+    <div class="label" style="color:#744210">İncelemede</div>
+    <div class="value" style="color:#744210">{{ stats.pending_proj }}</div>
+    <div class="sub">Gönderilmiş, onay bekliyor</div>
+  </div>
+  <div class="stat-card">
+    <div class="label" style="color:#C53030">Henüz Eklenmemiş</div>
+    <div class="value" style="color:#C53030">{{ stats.empty_proj }}</div>
+    <div class="sub">Hiç çıktı girilmemiş</div>
+  </div>
+</div>
+
+<!-- Filtre butonları -->
+<div class="filter-bar">
+  <button class="filter-btn active" onclick="filterTable('all', this)">Tümü</button>
+  <button class="filter-btn" onclick="filterTable('empty', this)">Sadece Eksikler</button>
+  <button class="filter-btn" onclick="filterTable('ok', this)">Sadece Tamamlananlar</button>
+  <button class="filter-btn" onclick="filterTable('decl', this)">Çıktı Yok Bildirimi</button>
+</div>
+
+<!-- Ana tablo -->
+<div class="card">
+  <table class="track-table" style="width:100%; border-collapse:collapse" id="main-table">
+    <thead>
+      <tr>
+        <th style="width:22%">Akademisyen</th>
+        <th style="width:12%">Proje Kodu</th>
+        <th style="width:30%">Proje Başlığı</th>
+        <th style="width:10%">Tür</th>
+        <th style="width:14%">Durum</th>
+        <th style="width:12%">Çıktı Özeti</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+      {% set proj_count = row.projects | length %}
+      {% for pd in row.projects %}
+        {% set p = pd.project %}
+        {% if p.no_output_declared %}
+          {% set row_state = 'decl' %}
+        {% elif pd.approved > 0 %}
+          {% set row_state = 'ok' %}
+        {% elif pd.pending > 0 or pd.revize > 0 %}
+          {% set row_state = 'pending' %}
+        {% else %}
+          {% set row_state = 'empty' %}
+        {% endif %}
+        <tr data-state="{{ row_state }}" data-person="{{ row.user.id }}">
+          <td {% if loop.first %}class="person-row"{% endif %}>
+            {% if loop.first %}
+              <div>{{ row.user.full_name }}</div>
+              <div style="font-size:11px; color:#4A90D9; font-weight:400; margin-top:2px">
+                {{ row.user.department or row.user.faculty or '' }}
+              </div>
+              <div style="font-size:11px; color:#718096; font-weight:400">
+                {{ proj_count }} proje
+              </div>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge badge-blue" style="font-size:11px">{{ p.project_code }}</span>
+          </td>
+          <td style="font-size:13px">{{ p.title | truncate(60) }}</td>
+          <td style="font-size:12px; color:#718096">{{ p.project_type or '—' }}</td>
+          <td>
+            {% if p.no_output_declared %}
+              <span class="decl">&#10007; Çıktı Yok Bildirimi</span>
+            {% elif pd.approved > 0 %}
+              <span class="tick">&#10003; Onaylı Çıktı Var</span>
+            {% elif pd.pending > 0 %}
+              <span class="pend">&#8987; İncelemede</span>
+            {% elif pd.revize > 0 %}
+              <span class="pend">&#8635; Revize Bekleniyor</span>
+            {% else %}
+              <span class="cross">&#10007; Henüz Eklenmemiş</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12px">
+            {% if p.no_output_declared %}
+              <span style="color:#553C9A">—</span>
+            {% else %}
+              {% if pd.approved > 0 %}
+                <span style="color:#276749; font-weight:600">{{ pd.approved }} onaylı</span>
+              {% endif %}
+              {% if pd.pending > 0 %}
+                <span style="color:#744210; font-weight:600">
+                  {% if pd.approved > 0 %} · {% endif %}{{ pd.pending }} bekliyor
+                </span>
+              {% endif %}
+              {% if pd.revize > 0 %}
+                <span style="color:#553C9A; font-weight:600">{{ pd.revize }} revize</span>
+              {% endif %}
+              {% if pd.total == 0 %}
+                <span style="color:#A0AEC0">—</span>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+function filterTable(state, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const rows = document.querySelectorAll('#main-table tbody tr');
+  rows.forEach(tr => {
+    if (state === 'all') {
+      tr.style.display = '';
+      return;
+    }
+    const s = tr.dataset.state;
+    if (state === 'empty'  && (s === 'empty' || s === 'pending')) { tr.style.display = ''; return; }
+    if (state === 'ok'     && s === 'ok')      { tr.style.display = ''; return; }
+    if (state === 'decl'   && s === 'decl')    { tr.style.display = ''; return; }
+    tr.style.display = 'none';
+  });
+}
+</script>
+{% endblock %}

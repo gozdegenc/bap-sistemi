@@ -156,6 +156,20 @@
     <h2>{% block page_title %}{% endblock %}</h2>
     <div class="flex gap-2">{% block topbar_actions %}{% endblock %}</div>
   </div>
+  {% if request.cookies.get('admin_backup_token') %}
+  <div style="background:#744210; color:white; padding:10px 32px; font-size:13px;
+              display:flex; align-items:center; justify-content:space-between;">
+    <span>
+      <strong>Yönetici modu:</strong>
+      <strong>{{ user.full_name }}</strong> kullanıcısı olarak işlem yapıyorsunuz.
+    </span>
+    <a href="/yonetim/simuleyi-bitir"
+       style="background:white; color:#744210; padding:5px 14px; border-radius:6px;
+              font-weight:600; text-decoration:none; font-size:13px;">
+      ← Yöneticiye Dön
+    </a>
+  </div>
+  {% endif %}
   <div class="content">
     {% block content %}{% endblock %}
   </div>

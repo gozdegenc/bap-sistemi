@@ -100,10 +100,12 @@
       {% endif %}
 
       <div class="form-group">
-        <label for="files">Yeni Ek Dosya Ekle</label>
-        <input type="file" id="files" name="files" multiple
-          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.xlsx">
-        <div class="form-hint">PDF, Word, görsel veya Excel dosyası yükleyebilirsiniz.</div>
+        <label>Yeni Ek Dosya Ekle</label>
+        <div id="file-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px"></div>
+        <button type="button" class="btn btn-outline btn-sm" onclick="addFileInput()">
+          + Dosya Ekle
+        </button>
+        <div class="form-hint">PDF, Word, görsel veya Excel. Her "Dosya Ekle" butonuyla ayrı ayrı ekleyebilirsiniz.</div>
       </div>
 
       <div class="flex gap-2 mt-2">
@@ -113,4 +115,25 @@
     </form>
   </div>
 </div>
+<script>
+function addFileInput() {
+  const container = document.getElementById('file-list');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex; align-items:center; gap:8px';
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.name = 'files';
+  inp.accept = '.pdf,.doc,.docx,.png,.jpg,.jpeg,.xlsx';
+  inp.style.cssText = 'flex:1; padding:6px 10px; border:1px solid #E2E8F0; border-radius:7px; font-size:13px';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = '✕';
+  btn.title = 'Kaldır';
+  btn.style.cssText = 'padding:5px 10px; border:1px solid #E2E8F0; border-radius:7px; background:white; cursor:pointer; color:#C53030; font-size:14px; flex-shrink:0';
+  btn.onclick = () => row.remove();
+  row.appendChild(inp);
+  row.appendChild(btn);
+  container.appendChild(row);
+}
+</script>
 {% endblock %}

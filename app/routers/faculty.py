@@ -175,6 +175,36 @@ async def edit_output_submit(
     return RedirectResponse(f"/portal/proje/{output.project_id}?revised=1", status_code=302)
 
 
+@router.post("/proje/{project_id}/cikti-yok")
+async def declare_no_output(
+    project_id: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404)
+    _check_project_access(user, project)
+    project.no_output_declared = True
+    db.commit()
+    return RedirectResponse(f"/portal/proje/{project_id}?no_output=1", status_code=302)
+
+
+@router.post("/proje/{project_id}/cikti-yok-kaldir")
+async def undeclare_no_output(
+    project_id: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404)
+    _check_project_access(user, project)
+    project.no_output_declared = False
+    db.commit()
+    return RedirectResponse(f"/portal/proje/{project_id}", status_code=302)
+
+
 @router.get("/cikti/{output_id}/sil")
 async def delete_output(
     output_id: int,

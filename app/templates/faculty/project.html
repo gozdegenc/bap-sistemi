@@ -14,6 +14,15 @@
 <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-form').scrollIntoView({behavior:'smooth'})">
   + Yeni Çıktı Ekle
 </button>
+{% if not project.no_output_declared %}
+<form method="post" action="/portal/proje/{{ project.id }}/cikti-yok" style="display:inline"
+  onsubmit="return confirm('Bu proje için çıktı bulunmamaktadır bildirimi göndermek istiyor musunuz?')">
+  <button type="submit" class="btn btn-sm"
+    style="background:#553C9A; color:white; border:none">
+    Çıktı Bulunmamaktadır
+  </button>
+</form>
+{% endif %}
 {% endblock %}
 
 {% block extra_style %}
@@ -32,10 +41,27 @@
 
 {% block content %}
 {% if request.query_params.get('success') %}
-<div class="alert alert-success">✓ Çıktı başarıyla eklendi. İncelendikten sonra onaylanacaktır.</div>
+<div class="alert alert-success">&#10003; Çıktı başarıyla eklendi. İncelendikten sonra onaylanacaktır.</div>
 {% endif %}
 {% if request.query_params.get('revised') %}
-<div class="alert alert-success">✓ Çıktı güncellendi ve tekrar incelemeye gönderildi.</div>
+<div class="alert alert-success">&#10003; Çıktı güncellendi ve tekrar incelemeye gönderildi.</div>
+{% endif %}
+{% if request.query_params.get('no_output') %}
+<div class="alert" style="background:#FAF5FF; border:1px solid #D8B4FE; color:#553C9A">
+  &#10003; "Bu proje için çıktı bulunmamaktadır" bildirimi gönderildi.
+</div>
+{% endif %}
+
+{% if project.no_output_declared %}
+<div style="margin-bottom:16px; padding:14px 18px; background:#FAF5FF; border:1px solid #D8B4FE; border-radius:10px; display:flex; align-items:center; justify-content:space-between">
+  <div>
+    <div style="font-weight:600; color:#553C9A; font-size:14px">Bu proje için "Çıktı Bulunmamaktadır" bildirimi gönderilmiştir.</div>
+    <div style="font-size:13px; color:#7C3AED; margin-top:2px">Çıktı eklemek istiyorsanız bildirimi kaldırıp form aracılığıyla ekleyebilirsiniz.</div>
+  </div>
+  <form method="post" action="/portal/proje/{{ project.id }}/cikti-yok-kaldir" style="flex-shrink:0; margin-left:16px">
+    <button type="submit" class="btn btn-outline btn-sm">Bildirimi Kaldır</button>
+  </form>
+</div>
 {% endif %}
 
 <!-- Proje bilgisi -->
@@ -172,10 +198,12 @@
       </div>
 
       <div class="form-group">
-        <label for="files">Kanıt Belgesi / Ek Dosyalar</label>
-        <input type="file" id="files" name="files" multiple
-          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.xlsx">
-        <div class="form-hint">PDF, Word, görsel veya Excel dosyası yükleyebilirsiniz. Birden fazla dosya seçilebilir.</div>
+        <label>Kanıt Belgesi / Ek Dosyalar</label>
+        <div id="file-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px"></div>
+        <button type="button" class="btn btn-outline btn-sm" onclick="addFileInput()">
+          + Dosya Ekle
+        </button>
+        <div class="form-hint">PDF, Word, görsel veya Excel. Her "Dosya Ekle" butonuyla ayrı ayrı ekleyebilirsiniz.</div>
       </div>
 
       <div class="flex gap-2 mt-2">
@@ -185,4 +213,26 @@
     </form>
   </div>
 </div>
+<script>
+function addFileInput() {
+  const container = document.getElementById('file-list');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex; align-items:center; gap:8px';
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.name = 'files';
+  inp.accept = '.pdf,.doc,.docx,.png,.jpg,.jpeg,.xlsx';
+  inp.style.cssText = 'flex:1; padding:6px 10px; border:1px solid #E2E8F0; border-radius:7px; font-size:13px';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = '✕';
+  btn.title = 'Kaldır';
+  btn.style.cssText = 'padding:5px 10px; border:1px solid #E2E8F0; border-radius:7px; background:white; cursor:pointer; color:#C53030; font-size:14px; flex-shrink:0';
+  btn.onclick = () => row.remove();
+  row.appendChild(inp);
+  row.appendChild(btn);
+  container.appendChild(row);
+}
+addFileInput();
+</script>
 {% endblock %}

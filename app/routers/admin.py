@@ -191,21 +191,68 @@ async def download_report(
     user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    y = year or datetime.now().year
+    label = str(year) if year else "tum_yillar"
     if format == "excel":
-        data = generate_excel_report(db, y)
+        data = generate_excel_report(db, year)
         return Response(
             content=data,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename=bap_rapor_{y}.xlsx"},
+            headers={"Content-Disposition": f"attachment; filename=bap_rapor_{label}.xlsx"},
         )
     else:
-        data = generate_pdf_report(db, y)
+        data = generate_pdf_report(db, year)
         return Response(
             content=data,
             media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=bap_rapor_{y}.pdf"},
+            headers={"Content-Disposition": f"attachment; filename=bap_rapor_{label}.pdf"},
         )
+
+
+@router.get("/takip", response_class=HTMLResponse)
+async def output_tracking(
+    request: Request,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    from app.models.models import UserRole
+    researchers = (
+        db.query(User)
+        .filter(User.role == UserRole.faculty, User.is_active == True)
+        .order_by(User.full_name)
+        .all()
+    )
+    rows = []
+    for r in researchers:
+        all_proj = list({p.id: p for p in r.led_projects + list(r.research_projects)}.values())
+        all_proj.sort(key=lambda p: p.project_code)
+        proj_data = []
+        for p in all_proj:
+            approved = [o for o in p.outputs if o.status == OutputStatus.onaylandi]
+            pending  = [o for o in p.outputs if o.status == OutputStatus.gonderildi]
+            revize   = [o for o in p.outputs if o.status == OutputStatus.revize_istendi]
+            proj_data.append({
+                "project": p,
+                "approved": len(approved),
+                "pending":  len(pending),
+                "revize":   len(revize),
+                "total":    len(p.outputs),
+            })
+        rows.append({"user": r, "projects": proj_data})
+
+    total_proj    = sum(len(r["projects"]) for r in rows)
+    done_proj     = sum(1 for r in rows for p in r["projects"] if p["approved"] > 0 or p["project"].no_output_declared)
+    pending_proj  = sum(1 for r in rows for p in r["projects"] if p["total"] > 0 and p["approved"] == 0 and not p["project"].no_output_declared)
+    empty_proj    = sum(1 for r in rows for p in r["projects"] if p["total"] == 0 and not p["project"].no_output_declared)
+
+    return templates.TemplateResponse("admin/tracking.html", {
+        "request": request, "user": user, "rows": rows,
+        "stats": {
+            "total_proj": total_proj,
+            "done_proj": done_proj,
+            "pending_proj": pending_proj,
+            "empty_proj": empty_proj,
+        },
+    })
 
 
 @router.get("/kullanicilar", response_class=HTMLResponse)
@@ -260,6 +307,37 @@ async def set_local_password(
     target.hashed_password = hash_password(new_password)
     db.commit()
     return RedirectResponse("/yonetim/kullanicilar?pw_success=1", status_code=302)
+
+
+@router.post("/kullanici/{user_id}/simule-et")
+async def impersonate_user(
+    user_id: int,
+    request: Request,
+    response: Response,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    from app.services.auth import create_access_token
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target or target.role.value == "admin":
+        raise HTTPException(400, "Bu kullanıcı simüle edilemez.")
+    admin_token = request.cookies.get("access_token")
+    user_token = create_access_token({"sub": target.username, "role": target.role.value})
+    resp = RedirectResponse("/portal", status_code=302)
+    resp.set_cookie("admin_backup_token", admin_token, httponly=True, samesite="lax", max_age=60 * 60 * 8)
+    resp.set_cookie("access_token", user_token, httponly=True, samesite="lax", max_age=60 * 60 * 8)
+    return resp
+
+
+@router.get("/simuleyi-bitir")
+async def stop_impersonation(request: Request):
+    admin_token = request.cookies.get("admin_backup_token")
+    if not admin_token:
+        return RedirectResponse("/giris", status_code=302)
+    resp = RedirectResponse("/yonetim/kullanicilar", status_code=302)
+    resp.set_cookie("access_token", admin_token, httponly=True, samesite="lax", max_age=60 * 60 * 8)
+    resp.delete_cookie("admin_backup_token")
+    return resp
 
 
 @router.post("/kullanici/{user_id}/sil")
